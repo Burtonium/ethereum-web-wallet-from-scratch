@@ -1,6 +1,6 @@
 'use client';
 
-import usePrivateKey from '@/hooks/usePrivateKey';
+import usePrivateKey from '@/hooks/usePrivateSeed';
 import React, { useState } from 'react';
 import useInput from '@/hooks/useInput';  
 import MnemonicGenerator from './MnemonicGenerator';

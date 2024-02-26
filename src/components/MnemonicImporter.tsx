@@ -1,6 +1,6 @@
-import React, { type ClipboardEvent, useState } from 'react';
+import { type ClipboardEvent, useState } from 'react';
 import * as bip39 from 'bip39';
-import usePrivateKey from '@/hooks/usePrivateKey';
+import usePrivateKey from '@/hooks/usePrivateSeed';
 import useInput from '@/hooks/useInput';
 
 const MnemonicImport = () => {

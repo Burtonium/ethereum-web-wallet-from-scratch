@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as bip39 from 'bip39';
-import usePrivateKey from '@/hooks/usePrivateKey';
+import usePrivateKey from '@/hooks/usePrivateSeed';
 import useInput from '@/hooks/useInput';
 import useCopyClipboard from '@/hooks/useCopyToClipboard';
 
