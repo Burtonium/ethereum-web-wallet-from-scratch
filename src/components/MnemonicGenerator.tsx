@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as bip39 from 'bip39';
 import usePrivateKey from '@/hooks/usePrivateKey';
 import useInput from '@/hooks/useInput';
