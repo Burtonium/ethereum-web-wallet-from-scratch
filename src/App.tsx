@@ -2,7 +2,7 @@ import './index.css';
 import Login from './components/Login';
 import usePrivateSeed from './hooks/usePrivateSeed';
 import Navbar from './components/NavBar';
-import Balances from './components/Balances';
+import Account from './components/Account';
 
 import './detectTheme';
 
@@ -22,7 +22,7 @@ function App() {
       <Navbar />
       {unlocked ? (
         <QueryClientProvider client={queryClient}>
-          <Balances />
+          <Account />
         </QueryClientProvider>
       ) : <Login />}
     </main>

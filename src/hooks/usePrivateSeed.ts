@@ -4,6 +4,7 @@ import { useLocalStorage, useSessionStorage } from 'usehooks-ts';
 import { ENCRYPTED_MNEMONIC_STORAGE, PRIVATE_SEED_STORAGE } from '@/constants';
 import * as bip39 from 'bip39';
 import * as ecc from 'tiny-secp256k1';
+import { privateToAddress, toChecksumAddress } from '@ethereumjs/util';
 
 import BIP32Factory from 'bip32';
 const bip32 = BIP32Factory(ecc);
@@ -33,16 +34,23 @@ function usePrivateSeed() {
     setPrivateSeed(null);
   }, [setEncryptedMnemonic, setPrivateSeed]);
 
+  const derivePrivateKey = useCallback((index: number) => {
+    assert(privateSeed, 'Private seed is not set');
+    const seedBuffer = Buffer.from(privateSeed, 'hex');
+    const master = bip32.fromSeed(seedBuffer);
+    const account = master.derivePath(`m/44'/60'/0'/0/${index}`);
+    return account.privateKey?.toString('hex');
+  } , [privateSeed]);
+
   const deriveAccount = useCallback((index: number) => {
     assert(privateSeed, 'Private seed is not set');
     const seedBuffer = Buffer.from(privateSeed, 'hex');
     const master = bip32.fromSeed(seedBuffer);
     const account = master.derivePath(`m/44'/60'/0'/0/${index}`);
-    const publicKey = account.publicKey;
-    const publicKeyHash = CryptoJS.SHA256(CryptoJS.enc.Hex.parse(publicKey.toString('hex'))).toString();
-    const address = `0x${publicKeyHash.substring(publicKeyHash.length - 40)}`;
+    const address = toChecksumAddress(`0x${Buffer.from(privateToAddress(account.privateKey!)).toString('hex')}`);
     return { index, address };
   }, [privateSeed]);
+
 
   return {
     hasAccount: encryptedMnemonic !== null,
@@ -51,7 +59,8 @@ function usePrivateSeed() {
     deriveAccount,
     setMnemonic,
     forget,
-    unlock
+    unlock,
+    derivePrivateKey
   };
 }
 
