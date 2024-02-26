@@ -9,7 +9,6 @@ import { FeeMarketEIP1559Transaction as TX } from '@ethereumjs/tx';
 import { bytesToHex } from '@ethereumjs/util'
 
 import React from 'react';
-import { delay } from 'lodash';
 
 async function fetchAccountBalance(accountAddress: string, nodeUrl: string): Promise<bigint> {
   const response = await fetch(nodeUrl, {
