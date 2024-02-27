@@ -1,136 +1,68 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import assert from 'assert';
+import { useForm, SubmitHandler } from "react-hook-form"
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { bytesToHex, bigIntToUnpaddedBytes, hexToBytes, unpadBytes, toBytes, ecsign, privateToAddress } from '@ethereumjs/util'
+import { RLP } from '@ethereumjs/rlp';
+import { keccak256 } from 'ethereum-cryptography/keccak.js';
+import React, { useState } from 'react';
+
+import { RPCDefinition } from '@/networks';
 import useAccounts from '@/hooks/useAccounts';
 import useNetworks from '@/hooks/useNetwork';
 import usePrivateSeed from '@/hooks/usePrivateSeed';
-import { RPCDefinition } from '@/networks';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm, SubmitHandler } from "react-hook-form"
-import { FeeMarketEIP1559Transaction as TX } from '@ethereumjs/tx';
-import { bytesToHex } from '@ethereumjs/util'
+import {
+  estimateGasPrice,
+  fetchAccountBalance,
+  fetchAccountNonce,
+  sendRawTransaction,
+  waitForTransactionToBeMined
+} from '@/rpc';
 
-import React, { useState } from 'react';
 
-async function fetchAccountBalance(accountAddress: string, nodeUrl: string): Promise<bigint> {
-  const response = await fetch(nodeUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'eth_getBalance',
-      params: [accountAddress, 'latest'],
-      id: 1,
-    }),
-  });
-
-  const data = await response.json();
-  if (data.error) {
-    console.log(data.error.message)
-    throw new Error(data.error.message);
-  }
-
-  return BigInt(data.result);
+type LegacyTransactionOptions = {
+  nonce?: bigint;
+  gasLimit?: bigint;
+  gasPrice?: bigint;
+  to: `0x${string}`;
+  value: bigint;
+  data?: `0x${string}`;
 }
 
-type Transaction = {
-  nonce: string;
-  maxPriorityFeePerGas: string;
-  maxFeePerGas: string;
-  gasLimit: string;
-  to: string;
-  value: string;
-  data: string;
-}
+type FormInputs = LegacyTransactionOptions;
 
-type FormInputs = Pick<Transaction, 'to' | 'value'>;
+async function createRawLegacyTransaction(privKey: string, opts: LegacyTransactionOptions, network: RPCDefinition): Promise<`0x${string}`> {
+  const gasPrice = opts.gasPrice || BigInt(await estimateGasPrice(network.rpcUrl));
+  const privateKey = Buffer.from(privKey, 'hex'); 
+  const fromAddress = bytesToHex(privateToAddress(privateKey));
+  const gasLimit = opts.gasLimit || 21000n;
+  
+  const nonce = opts.nonce || BigInt(await fetchAccountNonce(fromAddress, network.rpcUrl));
+  const data = opts.data || '0x0';
+  const chainId = BigInt(network.chainId); // Convert network.chainId to a bigint
 
-async function fetchAccountNonce(accountAddress: string, nodeUrl: string): Promise<string> {
-  const response = await fetch(nodeUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'eth_getTransactionCount',
-      params: [accountAddress, 'latest'],
-      id: 1,
-    }),
-  });
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error.message);
-  }
+  const rawLegacyManualFields = [
+    bigIntToUnpaddedBytes(nonce), // nonce
+    bigIntToUnpaddedBytes(gasPrice), // gasPrice
+    bigIntToUnpaddedBytes(gasLimit), // gasLimit
+    hexToBytes(opts.to), // to address
+    bigIntToUnpaddedBytes(opts.value), // value (wei)
+    hexToBytes(data), // data
+    bigIntToUnpaddedBytes(chainId), // chainId
+    unpadBytes(toBytes(0)), //  signature.v
+    unpadBytes(toBytes(0)), //  signature.r
+  ];
 
-  return data.result;
-}
+  // Serialize the manual transaction fields and sign the transaction
+  const serializedManualMessage = RLP.encode(rawLegacyManualFields);
+  const manualHashedMessage = keccak256(serializedManualMessage);
+  const manualSignature = ecsign(manualHashedMessage, privateKey, chainId);
 
-async function sendRawTransaction(privateKey: string, tx: Transaction, network: RPCDefinition): Promise<string> {
-  const trx = TX.fromTxData({
-    ...tx,
-    chainId: network.chainId,
-  });
+  // Assign the signature to the raw transaction
+  rawLegacyManualFields[6] = bigIntToUnpaddedBytes(manualSignature.v);
+  rawLegacyManualFields[7] = manualSignature.r;
+  rawLegacyManualFields[8] = manualSignature.s;
 
-
-  const signed = trx.sign(Buffer.from(privateKey, 'hex'));
-
-  const response = await fetch(network.rpcUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'eth_sendRawTransaction',
-      params: [bytesToHex(signed.serialize())],
-      id: 1,
-    }),
-  });
-
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error.message);
-  }
-
-  // Return the transaction hash
-  return data.result;
-}
-
-async function getTransactionReceipt(txHash: string, nodeUrl: string): Promise<any> {
-  const response = await fetch(nodeUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'eth_getTransactionReceipt',
-      params: [txHash],
-      id: 1,
-    }),
-  });
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error.message);
-  }
-
-  return data.result;
-}
-
-const waitForTransactionToBeMined = async (txHash: string, rpcUrl: string) => {
-  let retries = 0;
-  let receipt = await getTransactionReceipt(txHash, rpcUrl);
-  console.log('RECEIPT?', receipt);
-  while ((receipt == null || receipt?.status !== 'mined') && retries < 10) {
-    retries++;
-    receipt = await getTransactionReceipt(txHash, rpcUrl);
-    if (receipt && receipt.status === 'mined') {
-      break;
-    }
-    // Wait for a while before polling again
-    await new Promise(resolve => setTimeout(resolve, 2500));
-  }
+  return bytesToHex(RLP.encode(rawLegacyManualFields)) as `0x${string}`;
 }
 
 const Account: React.FC = () => {
@@ -139,6 +71,7 @@ const Account: React.FC = () => {
   const { derivePrivateKey } = usePrivateSeed();
   const queryClient = useQueryClient();
   const [isMining, setIsMining] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const balancesQuery = useQuery({
     queryKey: ['balances', account?.address, selectedNetwork?.rpcUrl],
@@ -154,19 +87,20 @@ const Account: React.FC = () => {
 
   const sendTransaction = useMutation({
     mutationKey: ['sendTransaction', account?.address, selectedNetwork?.rpcUrl],
-    mutationFn: async (tx: FormInputs) => sendRawTransaction(
-      derivePrivateKey(0)!,
-      {
-        ...tx,
-        value: '0x' + BigInt(tx.value).toString(16),
-        nonce: await fetchAccountNonce(account!.address, selectedNetwork!.rpcUrl),
-        maxFeePerGas: '0xBA43B7400', // 50 Gwei
-        maxPriorityFeePerGas: '0x59682F00', // 1.5 Gwei
-        gasLimit: '0x6208', 
+    mutationFn: async (inputs: FormInputs) => {
+      const privateKey = derivePrivateKey(account.index);
+      assert(privateKey, 'Private key not found');
+
+      const rawTx = await createRawLegacyTransaction(privateKey, {
+        nonce: BigInt(await fetchAccountNonce(account!.address, selectedNetwork!.rpcUrl)),
+        gasLimit: 21000n,
+        to: inputs.to,
+        value: inputs.value,
         data: '0x',
-      },
-      selectedNetwork!
-    ),
+      }, selectedNetwork!);
+      
+      return sendRawTransaction(rawTx, selectedNetwork!.rpcUrl);
+    },
     onSuccess: async (txHash: string) => {
       // Wait for the transaction to be mined
       setIsMining(true);
@@ -202,10 +136,73 @@ const Account: React.FC = () => {
             <p className="text-green-500 dark:text-green-300">Transaction sent: {sendTransaction.data}</p>  
           )}
           <form onSubmit={handleSubmit(onSubmit)}>
-          {sendTransaction.isError && (<p className='text-red-500'>{sendTransaction.error.message}</p>)}
+            {sendTransaction.isError && (<p className='text-red-500'>{sendTransaction.error.message}</p>)}
+            
+            <label className="inline-flex items-center cursor-pointer mb-5">
+              <span className="mr-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                Show advanced options
+              </span>
+              <input type="checkbox"
+                checked={showAdvanced}
+                onChange={() => setShowAdvanced((a) => !a)} className="sr-only peer" />
+              <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+            {showAdvanced && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-gray-700 dark:text-gray-300 text-md font-bold mb-2" htmlFor="nonce">
+                    Nonce
+                  </label>
+                  <input
+                    className="input"
+                    {...register('nonce')}
+                    type="number"
+                    disabled={sendTransaction.isPending}
+                    placeholder="Enter nonce"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 dark:text-gray-300 text-md font-bold mb-2" htmlFor="gasPrice">
+                    Gas Price (wei)
+                  </label>
+                  <input
+                    className="input"
+                    {...register('gasPrice')}
+                    type="number"
+                    disabled={sendTransaction.isPending}
+                    placeholder="Enter gas price"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 dark:text-gray-300 text-md font-bold mb-2" htmlFor="gasLimit">
+                    Gas Limit (wei)
+                  </label>
+                  <input
+                    className="input"
+                    {...register('gasLimit')}
+                    type="number"
+                    disabled={sendTransaction.isPending}
+                    placeholder="Enter gas limit"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 dark:text-gray-300 text-md font-bold mb-2" htmlFor="data">
+                    Data
+                  </label>
+                  <input
+                    className="input"
+                    {...register('data')}
+                    type="text"
+                    disabled={sendTransaction.isPending}
+                    placeholder="Enter data"
+                  />
+                </div>
+              </>
+            )}
+            
             <div className="mb-4">
               <label className="block text-gray-700 dark:text-gray-300 text-md font-bold mb-2" htmlFor="to">
-                To
+                To <span className="text-red-500">*</span>
               </label>
               <input
                 className="input"
@@ -219,7 +216,7 @@ const Account: React.FC = () => {
             </div>
             <div className="mb-6">
              <label className="block text-gray-700 dark:text-gray-300 text-md font-bold mb-2" htmlFor="amount">
-                Amount
+                Amount <span className="text-red-500">*</span>
               </label>
               <input
                 {...register('value', { required: true })}
