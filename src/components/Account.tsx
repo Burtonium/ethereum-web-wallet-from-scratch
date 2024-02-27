@@ -8,7 +8,7 @@ import { useForm, SubmitHandler } from "react-hook-form"
 import { FeeMarketEIP1559Transaction as TX } from '@ethereumjs/tx';
 import { bytesToHex } from '@ethereumjs/util'
 
-import React from 'react';
+import React, { useState } from 'react';
 
 async function fetchAccountBalance(accountAddress: string, nodeUrl: string): Promise<bigint> {
   const response = await fetch(nodeUrl, {
@@ -68,9 +68,9 @@ async function fetchAccountNonce(accountAddress: string, nodeUrl: string): Promi
 
 async function sendRawTransaction(privateKey: string, tx: Transaction, network: RPCDefinition): Promise<string> {
   const trx = TX.fromTxData({
-      ...tx,
-      chainId: network.chainId,
-    });
+    ...tx,
+    chainId: network.chainId,
+  });
 
 
   const signed = trx.sign(Buffer.from(privateKey, 'hex'));
@@ -97,11 +97,48 @@ async function sendRawTransaction(privateKey: string, tx: Transaction, network: 
   return data.result;
 }
 
+async function getTransactionReceipt(txHash: string, nodeUrl: string): Promise<any> {
+  const response = await fetch(nodeUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_getTransactionReceipt',
+      params: [txHash],
+      id: 1,
+    }),
+  });
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error.message);
+  }
+
+  return data.result;
+}
+
+const waitForTransactionToBeMined = async (txHash: string, rpcUrl: string) => {
+  let retries = 0;
+  let receipt = await getTransactionReceipt(txHash, rpcUrl);
+  console.log('RECEIPT?', receipt);
+  while ((receipt == null || receipt?.status !== 'mined') && retries < 10) {
+    retries++;
+    receipt = await getTransactionReceipt(txHash, rpcUrl);
+    if (receipt && receipt.status === 'mined') {
+      break;
+    }
+    // Wait for a while before polling again
+    await new Promise(resolve => setTimeout(resolve, 2500));
+  }
+}
+
 const Account: React.FC = () => {
   const [account] = useAccounts();
   const { selectedNetwork } = useNetworks();
   const { derivePrivateKey } = usePrivateSeed();
   const queryClient = useQueryClient();
+  const [isMining, setIsMining] = useState(false);
 
   const balancesQuery = useQuery({
     queryKey: ['balances', account?.address, selectedNetwork?.rpcUrl],
@@ -130,7 +167,12 @@ const Account: React.FC = () => {
       },
       selectedNetwork!
     ),
-    onSuccess: async () => {
+    onSuccess: async (txHash: string) => {
+      // Wait for the transaction to be mined
+      setIsMining(true);
+      await waitForTransactionToBeMined(txHash, selectedNetwork!.rpcUrl)
+        .finally(() => setIsMining(false));
+
       queryClient.invalidateQueries({ queryKey: ['balances', account?.address, selectedNetwork?.rpcUrl] });
       queryClient.invalidateQueries({ queryKey: ['transactions', account?.address, selectedNetwork?.rpcUrl] });
     }
@@ -169,6 +211,8 @@ const Account: React.FC = () => {
                 className="input"
                 {...register('to', { required: true })}
                 type="text"
+
+                disabled={sendTransaction.isPending}
                 placeholder="Enter recipient's address"
               />
               <p className='text-red-500'>{errors.to && 'Recipient address is required'}</p>
@@ -181,6 +225,7 @@ const Account: React.FC = () => {
                 {...register('value', { required: true })}
                 className="input"
                 type="number"
+                disabled={sendTransaction.isPending}
                 placeholder="Enter amount in wei"
                 required
               />
@@ -189,10 +234,10 @@ const Account: React.FC = () => {
             <div className="flex items-center justify-between">
               <button
                 disabled={sendTransaction.isPending}
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                className="btn"
                 type="submit"
               >
-                {sendTransaction.isPending ? 'Sending...' : 'Send'}
+                {isMining ? 'Waiting for tx to be mined...' : sendTransaction.isPending ? 'Sending...' : 'Send'}
               </button>
             </div>
           </form>
