@@ -3,7 +3,6 @@ import { Switch } from '@headlessui/react'
 import classNames from 'classnames';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
-import Cookies from 'cookies-js';
 import { setTheme } from '@/utils';
 
 
@@ -14,7 +13,7 @@ if (!document.cookie.includes('theme') && preference) {
 }
 
 export default function DarkModeToggle() {
-  const [enabled, setEnabled] = useState<boolean>(Cookies.get('theme') === 'dark');
+  const [enabled, setEnabled] = useState<boolean>(localStorage.get('theme') === 'dark');
 
   const toggle = useCallback((toggled: boolean) => {
     setEnabled(toggled);

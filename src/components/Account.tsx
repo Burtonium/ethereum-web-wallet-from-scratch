@@ -18,7 +18,6 @@ import {
   waitForTransactionToBeMined
 } from '@/rpc';
 
-
 type LegacyTransactionOptions = {
   nonce?: bigint;
   gasLimit?: bigint;
@@ -30,7 +29,11 @@ type LegacyTransactionOptions = {
 
 type FormInputs = LegacyTransactionOptions;
 
-async function createRawLegacyTransaction(privKey: string, opts: LegacyTransactionOptions, network: RPCDefinition): Promise<`0x${string}`> {
+async function createRawLegacyTransaction(
+  privKey: string,
+  opts: LegacyTransactionOptions,
+  network: RPCDefinition
+): Promise<`0x${string}`> {
   const gasPrice = opts.gasPrice || BigInt(await estimateGasPrice(network.rpcUrl));
   const privateKey = Buffer.from(privKey, 'hex'); 
   const fromAddress = bytesToHex(privateToAddress(privateKey));
