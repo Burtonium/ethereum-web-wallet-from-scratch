@@ -41,16 +41,16 @@ async function createRawLegacyTransaction(
   
   const nonce = opts.nonce || BigInt(await fetchAccountNonce(fromAddress, network.rpcUrl));
   const data = opts.data || '0x0';
-  const chainId = BigInt(network.chainId); // Convert network.chainId to a bigint
+  const chainId = BigInt(network.chainId);
 
   const rawLegacyManualFields = [
-    bigIntToUnpaddedBytes(nonce), // nonce
-    bigIntToUnpaddedBytes(gasPrice), // gasPrice
-    bigIntToUnpaddedBytes(gasLimit), // gasLimit
-    hexToBytes(opts.to), // to address
-    bigIntToUnpaddedBytes(opts.value), // value (wei)
-    hexToBytes(data), // data
-    bigIntToUnpaddedBytes(chainId), // chainId
+    bigIntToUnpaddedBytes(nonce),
+    bigIntToUnpaddedBytes(gasPrice),
+    bigIntToUnpaddedBytes(gasLimit),
+    hexToBytes(opts.to),
+    bigIntToUnpaddedBytes(opts.value),
+    hexToBytes(data),
+    bigIntToUnpaddedBytes(chainId),
     unpadBytes(toBytes(0)), 
     unpadBytes(toBytes(0)),
   ];

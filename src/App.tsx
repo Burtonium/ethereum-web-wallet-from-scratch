@@ -2,7 +2,7 @@ import './index.css';
 import Login from './components/Login';
 import usePrivateSeed from './hooks/usePrivateSeed';
 import Navbar from './components/NavBar';
-import Account from './components/Account';
+import TransactionForm from './components/TransactionForm';
 
 import './detectTheme';
 
@@ -22,7 +22,7 @@ function App() {
       <Navbar />
       {unlocked ? (
         <QueryClientProvider client={queryClient}>
-          <Account />
+          <TransactionForm />
         </QueryClientProvider>
       ) : <Login />}
     </main>
