@@ -94,13 +94,7 @@ const Account: React.FC = () => {
       const privateKey = derivePrivateKey(account.index);
       assert(privateKey, 'Private key not found');
 
-      const rawTx = await createRawLegacyTransaction(privateKey, {
-        nonce: BigInt(await fetchAccountNonce(account!.address, selectedNetwork!.rpcUrl)),
-        gasLimit: 21000n,
-        to: inputs.to,
-        value: inputs.value,
-        data: '0x',
-      }, selectedNetwork!);
+      const rawTx = await createRawLegacyTransaction(privateKey, inputs, selectedNetwork!);
       
       return sendRawTransaction(rawTx, selectedNetwork!.rpcUrl);
     },
@@ -140,7 +134,6 @@ const Account: React.FC = () => {
           )}
           <form onSubmit={handleSubmit(onSubmit)}>
             {sendTransaction.isError && (<p className='text-red-500'>{sendTransaction.error.message}</p>)}
-            
             <label className="inline-flex items-center cursor-pointer mb-5">
               <span className="mr-3 text-sm font-medium text-gray-900 dark:text-gray-300">
                 Show advanced options
@@ -202,7 +195,6 @@ const Account: React.FC = () => {
                 </div>
               </>
             )}
-            
             <div className="mb-4">
               <label className="block text-gray-700 dark:text-gray-300 text-md font-bold mb-2" htmlFor="to">
                 To <span className="text-red-500">*</span>

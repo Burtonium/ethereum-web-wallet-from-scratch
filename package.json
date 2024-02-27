@@ -1,7 +1,12 @@
 {
   "name": "wallet-application",
-  "private": true,
-  "version": "0.0.0",
+  "author": {
+    "name": "Matt Burton",
+    "email": "matt@burtonize.me"
+  },
+  "license": "MIT",
+  "private": false,
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "PORT=3000 vite",
