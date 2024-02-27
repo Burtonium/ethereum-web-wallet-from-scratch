@@ -51,8 +51,8 @@ async function createRawLegacyTransaction(
     bigIntToUnpaddedBytes(opts.value), // value (wei)
     hexToBytes(data), // data
     bigIntToUnpaddedBytes(chainId), // chainId
-    unpadBytes(toBytes(0)), //  signature.v
-    unpadBytes(toBytes(0)), //  signature.r
+    unpadBytes(toBytes(0)), 
+    unpadBytes(toBytes(0)),
   ];
 
   // Serialize the manual transaction fields and sign the transaction
