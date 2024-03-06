@@ -38,7 +38,6 @@ async function createRawLegacyTransaction(
   const privateKey = Buffer.from(privKey, 'hex'); 
   const fromAddress = bytesToHex(privateToAddress(privateKey));
   const gasLimit = opts.gasLimit || 21000n;
-  
   const nonce = opts.nonce || BigInt(await fetchAccountNonce(fromAddress, network.rpcUrl));
   const data = opts.data || '0x0';
   const chainId = BigInt(network.chainId);
