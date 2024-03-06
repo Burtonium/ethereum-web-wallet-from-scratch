@@ -13,7 +13,7 @@ if (!document.cookie.includes('theme') && preference) {
 }
 
 export default function DarkModeToggle() {
-  const [enabled, setEnabled] = useState<boolean>(localStorage.get('theme') === 'dark');
+  const [enabled, setEnabled] = useState<boolean>(localStorage.getItem('theme') === 'dark');
 
   const toggle = useCallback((toggled: boolean) => {
     setEnabled(toggled);
