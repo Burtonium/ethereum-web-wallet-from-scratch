@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 export default defineConfig({
+  build: {
+    target: 'esnext'
+  },
   plugins: [wasm(), react(), nodePolyfills()],
   resolve: {
     alias: {
